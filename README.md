@@ -1,3 +1,63 @@
+// server.js
+const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
+const mongoose = require('mongoose');
+const cors = require('cors');
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// MongoDB Connection (use your MongoDB Atlas URI)
+mongoose.connect('YOUR_MONGO_URI', { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(() => console.log('MongoDB connected'))
+  .catch(err => console.error('MongoDB error:', err));
+
+// Message Schema
+const MessageSchema = new mongoose.Schema({
+  user: String,
+  text: String,
+  time: { type: Date, default: Date.now }
+});
+
+const Message = mongoose.model('Message', MessageSchema);
+
+// Basic route
+app.get('/', (req, res) => {
+  res.send('Chat server is running');
+});
+
+const server = http.createServer(app);
+
+const io = new Server(server, {
+  cors: { origin: "*" }
+});
+
+// Socket.IO
+io.on('connection', socket => {
+  console.log('User connected:', socket.id);
+
+  Message.find().sort({ time: 1 }).limit(20).then(messages => {
+    socket.emit('chatHistory', messages);
+  });
+
+  socket.on('message', msg => {
+    const message = new Message(msg);
+    message.save().then(() => {
+      io.emit('message', msg);
+    });
+  });
+
+  socket.on('disconnect', () => {
+    console.log('User disconnected:', socket.id);
+  });
+});
+
+const PORT = process.env.PORT || 5000;
+server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+
 # <!DOCTYPE html>
 <html lang="en">
 <head>
